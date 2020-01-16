@@ -242,30 +242,34 @@ CNRSExtractTcThreePoints[PPMSCurve_, OptionsPattern[]] :=
   SmoothedCurveAround10 = 
    Select[SmoothedCurve, -FitRange < #[[2]] - 0.1 SmoothedCurveR100 < 
       FitRange &];
+  PlotCurveList = {SmoothedCurve};
   If[Length[SmoothedCurveAround10] > 0,
-   SmoothedCurveR10 = Mean[SmoothedCurveAround10],
-   SmoothedCurveR10 = {0, 0}
+   SmoothedCurveR10 = Mean[SmoothedCurveAround10];
+   AppendTo[PlotCurveList, SmoothedCurveAround10],
+   SmoothedCurveR10 = {0, 0};
+   AppendTo[PlotCurveList, {0, 0}]
    ];
   SmoothedCurveAround50 = 
    Select[SmoothedCurve, -2 FitRange < #[[2]] - 
        0.5 SmoothedCurveR100 < 2 FitRange &];
   If[Length[SmoothedCurveAround50] > 0,
-   SmoothedCurveR50 = Mean[SmoothedCurveAround50],
-   SmoothedCurveR50 = {0, 0}
+   SmoothedCurveR50 = Mean[SmoothedCurveAround50];
+   AppendTo[PlotCurveList, SmoothedCurveAround50],
+   SmoothedCurveR50 = {0, 0};
+   AppendTo[PlotCurveList, {0, 0}]
    ];
   SmoothedCurveAround90 = 
    Select[SmoothedCurve, -FitRange < #[[2]] - 0.9 SmoothedCurveR100 < 
       FitRange &];
   If[Length[SmoothedCurveAround50] > 0,
-   SmoothedCurveR90 = Mean[SmoothedCurveAround90],
-   SmoothedCurveR90 = {0, 0}
+   SmoothedCurveR90 = Mean[SmoothedCurveAround90];
+   AppendTo[PlotCurveList, SmoothedCurveAround90],
+   SmoothedCurveR90 = {0, 0};
+   AppendTo[PlotCurveList, {0, 0}]
    ];
   If[OptionValue[OutputFormat] == "Graph",
    ListPlot[
-    {SmoothedCurve,
-     SmoothedCurveAround90,
-     SmoothedCurveAround50,
-     SmoothedCurveAround10},
+    PlotCurveList,
     PlotRange -> All,
     PlotMarkers -> {{\[FilledCircle], 3}, {\[FilledCircle], 
        5}, {\[FilledCircle], 5}, {\[FilledCircle], 5}},
