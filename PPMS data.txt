@@ -1,0 +1,304 @@
+FileToTable[Filename_] := ImportString[
+    StringReplace[
+     Import[Filename, "Text"],
+     StartOfLine ~~ "#" ~~ Shortest[__] ~~ EndOfLine  ~~ "\n" -> ""],
+    "Table"][[2 ;;]];
+
+CNRSFileToTable[Filename_] := ImportString[
+    StringReplace[
+     Import[Filename, "Text"],
+     StartOfLine ~~ "#" ~~ Shortest[__] ~~ EndOfLine  ~~ "\n" -> ""],
+    "Table", "FieldSeparators" -> ","][[38 ;;]];
+
+MeanRecurring[list_, 
+  dimension_] := (SortedList = SortBy[list, dimension];
+  GatheredList = GatherBy[SortedList, #[[dimension]] &];
+  Table[Total[GatheredList[[i]]]/
+   Length[GatheredList[[i]]], {i, 1, Length[GatheredList]}])
+
+PPMSFileToTable[Filename_] :=
+ (OutputTable = {};
+  SingleFileTable = MeanRecurring[FileToTable[Filename], 5];
+  LowestT = 
+   Position[SingleFileTable[[;; , 5]], 
+     Min[SingleFileTable[[;; , 5]]]][[1, 1]];
+  OutputTable = 
+   Append[OutputTable, SingleFileTable[[LowestT + 50 ;;, {5, 7}]]];
+  OutputTable = 
+   Append[OutputTable, SingleFileTable[[LowestT + 50 ;;, {5, 8}]]];
+  OutputTable
+  )
+
+PPMSCNRSFileToTable[Filename_] :=
+ (OutputTable = {};
+  SingleFileTable = MeanRecurring[FileToTable[Filename], 3];
+  LowestT = 
+   Position[SingleFileTable[[;; , 3]], 
+     Min[SingleFileTable[[;; , 3]]]][[1, 1]];
+  OutputTable = 
+   Append[OutputTable, SingleFileTable[[LowestT + 50 ;;, {3, 6}]]];
+  OutputTable = 
+   Append[OutputTable, SingleFileTable[[LowestT + 50 ;;, {3, 8}]]];
+  OutputTable = 
+   Append[OutputTable, SingleFileTable[[LowestT + 50 ;;, {3, 10}]]];
+  OutputTable
+  )
+
+PPMSFileToTableTRange[Filename_, TRange_] :=
+ (OutputTable = {};
+  SingleFileTable = MeanRecurring[FileToTable[Filename], 5];
+  LowestT = 
+   Position[SingleFileTable[[;; , 5]], 
+     Min[SingleFileTable[[;; , 5]]]][[1, 1]];
+  OutputTable = 
+   Append[OutputTable, 
+    Select[SingleFileTable[[LowestT + 50 ;;, {5, 7}]], 
+     TRange[[1]] < #[[1]] < TRange[[2]] &]];
+  OutputTable = 
+   Append[OutputTable, 
+    Select[SingleFileTable[[LowestT + 50 ;;, {5, 8}]], 
+     TRange[[1]] < #[[1]] < TRange[[2]] &]];
+  OutputTable
+  )
+
+PPMSCNRSFileToTableTRange[Filename_, TRange_] :=
+ (OutputTable = {};
+  SingleFileTable = MeanRecurring[CNRSFileToTable[Filename], 3];
+  LowestT = 
+   Position[SingleFileTable[[;; , 3]], 
+     Min[SingleFileTable[[;; , 3]]]][[1, 1]];
+  OutputTable = 
+   Append[OutputTable, 
+    Select[SingleFileTable[[;; , {3, 6}]], 
+     TRange[[1]] < #[[1]] < TRange[[2]] &]];
+  OutputTable = 
+   Append[OutputTable, 
+    Select[SingleFileTable[[;; , {3, 8}]], 
+     TRange[[1]] < #[[1]] < TRange[[2]] &]];
+  OutputTable = 
+   Append[OutputTable, 
+    Select[SingleFileTable[[;; , {3, 10}]], 
+     TRange[[1]] < #[[1]] < TRange[[2]] &]];
+  OutputTable
+  )
+
+PPMSFilesToTable[FilenameList_] :=
+ (Output = {};
+  For[i = 1, i <= Length[FilenameList], i++,
+   Table2Samples = PPMSFileToTable[FilenameList[[i]]];
+   Output = 
+    Append[Append[Output, Table2Samples[[1]]], Table2Samples[[2]]];
+   ];
+  Output)
+
+PPMSFilesToTableTRange[FilenameList_, TRange_] :=
+ (Output = {};
+  For[i = 1, i <= Length[FilenameList], i++,
+   Table2Samples = PPMSFileToTableTRange[FilenameList[[i]], TRange];
+   Output = 
+    Append[Append[Output, Table2Samples[[1]]], Table2Samples[[2]]];
+   ];
+  Output)
+
+PPMSCNRSFilesToTable[FilenameList_] :=
+ (Output = {};
+  For[i = 1, i <= Length[FilenameList], i++,
+   Table2Samples = PPMSCNRSFileToTable[FilenameList[[i]]];
+   Output = 
+    Append[Append[Append[Output, Table2Samples[[1]]], 
+      Table2Samples[[2]]], Table2Samples[[3]]];
+   ];
+  Output)
+
+PPMSCNRSFilesToTableTRange[FilenameList_, TRange_] :=
+ (Output = {};
+  For[i = 1, i <= Length[FilenameList], i++,
+   Table2Samples = 
+    PPMSCNRSFileToTableTRange[FilenameList[[i]], TRange];
+   Output = 
+    Append[Append[Append[Output, Table2Samples[[1]]], 
+      Table2Samples[[2]]], Table2Samples[[3]]];
+   ];
+  Output)
+
+GaussianFilterSingleCurve[InputList_, SmoothingRadius_] :=
+  Transpose[
+   Join[{InputList[[;; , 1]]}, {GaussianFilter[InputList[[;; , 2]], 
+      SmoothingRadius]}]];
+
+Repeat[m_, n_Integer?Positive] := Sequence @@ ConstantArray[m, n];
+
+Options[ExtractTcThreePoints] = {BottomRange -> 2, TopRange -> 3.5, 
+   FitRangeRatio -> 0.02, SmoothingRadius -> 15, 
+   OutputFormat -> "Graph"};
+ExtractTcThreePoints[PPMSCurve_, OptionsPattern[]] :=
+ (DerivativeList = 
+   Differences[GaussianFilterSingleCurve[PPMSCurve, 100][[;; , 2]]];
+  MaxDerivativePosition = 
+   Position[DerivativeList, Max[DerivativeList]][[1, 1]];
+  TransitionWidth = 
+   Length[Select[DerivativeList, # - Max[DerivativeList]/2 > 0 &]];
+  MaxDerivativeT = PPMSCurve[[MaxDerivativePosition, 1]];
+  TransitionWidthT = 
+   MaxDerivativeT - 
+    PPMSCurve[[MaxDerivativePosition - TransitionWidth, 1]];
+  PPMSCurveSelection = 
+   Select[PPMSCurve, 
+    MaxDerivativeT - OptionValue[BottomRange] TransitionWidthT < #[[
+       1]] < MaxDerivativeT + 
+       OptionValue[TopRange ] TransitionWidthT &];
+  FitRange = 
+   OptionValue[FitRangeRatio] Max[PPMSCurveSelection[[;; , 2]]];
+  SmoothedCurve = 
+   GaussianFilterSingleCurve[PPMSCurveSelection, 
+    OptionValue[SmoothingRadius]];
+  SmoothedCurveAround100 = 
+   Select[SmoothedCurve, -2 FitRange < #[[2]] - 
+       Max[SmoothedCurve[[;; , 2]]] &];
+  SmoothedCurveR100 = Mean[SmoothedCurveAround100[[;; , 2]]];
+  SmoothedCurveAround10 = 
+   Select[SmoothedCurve, -FitRange < #[[2]] - 0.1 SmoothedCurveR100 < 
+      FitRange &];
+  SmoothedCurveR10 = Mean[SmoothedCurveAround10];
+  SmoothedCurveAround50 = 
+   Select[SmoothedCurve, -FitRange < #[[2]] - 0.5 SmoothedCurveR100 < 
+      FitRange &];
+  SmoothedCurveR50 = Mean[SmoothedCurveAround50];
+  SmoothedCurveAround90 = 
+   Select[SmoothedCurve, -FitRange < #[[2]] - 0.9 SmoothedCurveR100 < 
+      FitRange &];
+  SmoothedCurveR90 = Mean[SmoothedCurveAround90];
+  If[OptionValue[OutputFormat] == "Graph",
+   ListPlot[
+    {SmoothedCurve,
+     SmoothedCurveAround90,
+     SmoothedCurveAround50,
+     SmoothedCurveAround10},
+    PlotMarkers -> {{\[FilledCircle], 3}, {\[FilledCircle], 
+       5}, {\[FilledCircle], 5}, {\[FilledCircle], 5}},
+    Epilog -> {Directive[Red],
+      Line[{{SmoothedCurveR10[[1]], 0}, SmoothedCurveR10}],
+      Line[{{SmoothedCurveR50[[1]], 0}, SmoothedCurveR50}],
+      Line[{{SmoothedCurveR90[[1]], 0}, SmoothedCurveR90}],
+      Line[{{0, SmoothedCurveR10[[2]]}, SmoothedCurveR10}],
+      Line[{{0, SmoothedCurveR50[[2]]}, SmoothedCurveR50}],
+      Line[{{0, SmoothedCurveR90[[2]]}, SmoothedCurveR90}]},
+    PlotLegends -> 
+     SwatchLegend[{"Data", "Range for 90% fit", "Range for 50% fit", 
+       "Range for 10% fit"}, LegendMarkerSize -> 7, 
+      LegendMarkers -> "Bubble"],
+    PlotLabel -> Style[StringJoin[
+       "\!\(\*SubscriptBox[\(T\), \(c, 10  %\)]\)=", 
+       ToString[NumberForm[SmoothedCurveR10[[1]], 4]], ", ",
+       "\!\(\*SubscriptBox[\(T\), \(c, 50  %\)]\)=", 
+       ToString[NumberForm[SmoothedCurveR50[[1]], 4]], ", ",
+       "\!\(\*SubscriptBox[\(T\), \(c, 90  %\)]\)=", 
+       ToString[NumberForm[SmoothedCurveR90[[1]], 4]], "\n"], 
+      FontSize -> 15, FontColor -> Black],
+    AxesLabel -> {"Temperature (K)", "Resistance (\[CapitalOmega])"},
+    ImageSize -> 400
+    ],
+   If[OptionValue[OutputFormat] == "Table",
+    {SmoothedCurveR10[[1]], SmoothedCurveR50[[1]], 
+     SmoothedCurveR90[[1]]},
+    If[OptionValue[OutputFormat] == "ErrorTable",
+     {SmoothedCurveR50[[1]], 
+      ErrorBar[{SmoothedCurveR10[[1]] - SmoothedCurveR50[[1]], 
+        SmoothedCurveR90[[1]] - SmoothedCurveR50[[1]]}]},
+     Print["OutputFormat invalid."]
+     ]
+    ]
+   ])
+
+Options[CNRSExtractTcThreePoints] = {BottomRange -> 2, 
+   TopRange -> 3.5, FitRangeRatio -> 0.05, SmoothingRadius -> 5, 
+   OutputFormat -> "Graph"};
+CNRSExtractTcThreePoints[PPMSCurve_, OptionsPattern[]] :=
+ (DerivativeList = 
+   Abs[Differences[
+     GaussianFilterSingleCurve[PPMSCurve, 10][[;; , 2]]]];
+  MaxDerivativePosition = 
+   Position[DerivativeList, Max[DerivativeList]][[1, 1]];
+  TransitionWidth = 
+   Length[Select[DerivativeList, # - Max[DerivativeList]/2 > 0 &]];
+  MaxDerivativeT = PPMSCurve[[MaxDerivativePosition, 1]];
+  TransitionWidthT = 
+   Abs[MaxDerivativeT - 
+     PPMSCurve[[MaxDerivativePosition - TransitionWidth, 1]]];
+  PPMSCurveSelection = 
+   Select[PPMSCurve, 
+    MaxDerivativeT - OptionValue[BottomRange] TransitionWidthT < #[[
+       1]] < MaxDerivativeT + 
+       OptionValue[TopRange ] TransitionWidthT &];
+  FitRange = 
+   OptionValue[FitRangeRatio] Max[PPMSCurveSelection[[;; , 2]]];
+  SmoothedCurve = 
+   GaussianFilterSingleCurve[PPMSCurveSelection, 
+    OptionValue[SmoothingRadius]];
+  SmoothedCurveAround100 = 
+   Select[SmoothedCurve, -2 FitRange < #[[2]] - 
+       Max[SmoothedCurve[[;; , 2]]] &];
+  SmoothedCurveR100 = Mean[SmoothedCurveAround100[[;; , 2]]];
+  SmoothedCurveAround10 = 
+   Select[SmoothedCurve, -FitRange < #[[2]] - 0.1 SmoothedCurveR100 < 
+      FitRange &];
+  If[Length[SmoothedCurveAround10] > 0,
+   SmoothedCurveR10 = Mean[SmoothedCurveAround10],
+   SmoothedCurveR10 = {0, 0}
+   ];
+  SmoothedCurveAround50 = 
+   Select[SmoothedCurve, -2 FitRange < #[[2]] - 
+       0.5 SmoothedCurveR100 < 2 FitRange &];
+  If[Length[SmoothedCurveAround50] > 0,
+   SmoothedCurveR50 = Mean[SmoothedCurveAround50],
+   SmoothedCurveR50 = {0, 0}
+   ];
+  SmoothedCurveAround90 = 
+   Select[SmoothedCurve, -FitRange < #[[2]] - 0.9 SmoothedCurveR100 < 
+      FitRange &];
+  If[Length[SmoothedCurveAround50] > 0,
+   SmoothedCurveR90 = Mean[SmoothedCurveAround90],
+   SmoothedCurveR90 = {0, 0}
+   ];
+  If[OptionValue[OutputFormat] == "Graph",
+   ListPlot[
+    {SmoothedCurve,
+     SmoothedCurveAround90,
+     SmoothedCurveAround50,
+     SmoothedCurveAround10},
+    PlotRange -> All,
+    PlotMarkers -> {{\[FilledCircle], 3}, {\[FilledCircle], 
+       5}, {\[FilledCircle], 5}, {\[FilledCircle], 5}},
+    Epilog -> {Directive[Red],
+      Line[{{SmoothedCurveR10[[1]], 0}, SmoothedCurveR10}],
+      Line[{{SmoothedCurveR50[[1]], 0}, SmoothedCurveR50}],
+      Line[{{SmoothedCurveR90[[1]], 0}, SmoothedCurveR90}],
+      Line[{{0, SmoothedCurveR10[[2]]}, SmoothedCurveR10}],
+      Line[{{0, SmoothedCurveR50[[2]]}, SmoothedCurveR50}],
+      Line[{{0, SmoothedCurveR90[[2]]}, SmoothedCurveR90}]},
+    PlotLegends -> 
+     SwatchLegend[{"Data", "Range for 90% fit", "Range for 50% fit", 
+       "Range for 10% fit"}, LegendMarkerSize -> 7, 
+      LegendMarkers -> "Bubble"],
+    PlotLabel -> Style[StringJoin[
+       "\!\(\*SubscriptBox[\(T\), \(c, 10  %\)]\)=", 
+       ToString[NumberForm[SmoothedCurveR10[[1]], 4]], ", ",
+       "\!\(\*SubscriptBox[\(T\), \(c, 50  %\)]\)=", 
+       ToString[NumberForm[SmoothedCurveR50[[1]], 4]], ", ",
+       "\!\(\*SubscriptBox[\(T\), \(c, 90  %\)]\)=", 
+       ToString[NumberForm[SmoothedCurveR90[[1]], 4]], "\n"], 
+      FontSize -> 15, FontColor -> Black],
+    AxesLabel -> {"Temperature (K)", "Resistance (\[CapitalOmega])"},
+    ImageSize -> 400
+    ],
+   If[OptionValue[OutputFormat] == "Table",
+    {SmoothedCurveR10[[1]], SmoothedCurveR50[[1]], 
+     SmoothedCurveR90[[1]]},
+    If[OptionValue[OutputFormat] == "ErrorTable",
+     {SmoothedCurveR50[[1]], 
+      ErrorBar[{SmoothedCurveR10[[1]] - SmoothedCurveR50[[1]], 
+        SmoothedCurveR90[[1]] - SmoothedCurveR50[[1]]}]},
+     Print["OutputFormat invalid."]
+     ]
+    ]
+   ])
